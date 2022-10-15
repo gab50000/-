@@ -25,6 +25,10 @@ impl Policy {
         });
         p(input)
     }
+    pub fn validate(&self, input: &str) -> bool {
+        let char_count = input.matches(self.char).count() as i32;
+        self.min_occurrence <= char_count && char_count <= self.max_occurrence
+    }
 }
 
 fn parse_line(input: &str) -> IResult<&str, (Policy, &str)> {
@@ -40,7 +44,7 @@ pub fn solve_a() -> io::Result<()> {
     let lines = std::fs::read_to_string("data/02.txt")?;
     let result = lines.lines().map(parse_line).map(Result::unwrap);
     for (_, (pol, str)) in result {
-        println!("{:?} -> {}", pol, str);
+        println!("{:?} -> {}: {}", pol, str, pol.validate(str));
     }
     Ok(())
 }
