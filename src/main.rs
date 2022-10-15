@@ -1,6 +1,7 @@
-use AdventOfCode2020::day01;
+mod day01;
+mod day02;
 
 fn main() {
-    println!("Hello, world!");
     day01::solve_b();
+    day02::solve_a();
 }
