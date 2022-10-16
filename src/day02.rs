@@ -3,7 +3,7 @@ use nom::{
     character::complete::{alpha1, anychar, char, digit1},
     combinator::{map, map_res},
     sequence::separated_pair,
-    IResult,
+    AsBytes, IResult,
 };
 use std::{io, str::FromStr};
 
@@ -25,9 +25,21 @@ impl Policy {
         });
         p(input)
     }
+
     pub fn validate(&self, input: &str) -> bool {
         let char_count = input.matches(self.char).count() as i32;
         self.min_occurrence <= char_count && char_count <= self.max_occurrence
+    }
+
+    pub fn validate2(&self, input: &str) -> bool {
+        let mut count: i8 = 0;
+        if input.as_bytes()[(self.min_occurrence - 1) as usize] == self.char as u8 {
+            count += 1;
+        }
+        if input.as_bytes()[(self.max_occurrence - 1) as usize] == self.char as u8 {
+            count += 1;
+        }
+        count == 1
     }
 }
 
@@ -42,9 +54,26 @@ fn parse_numbers(input: &str) -> IResult<&str, i32> {
 
 pub fn solve_a() -> io::Result<()> {
     let lines = std::fs::read_to_string("data/02.txt")?;
-    let result = lines.lines().map(parse_line).map(Result::unwrap);
-    for (_, (pol, str)) in result {
-        println!("{:?} -> {}: {}", pol, str, pol.validate(str));
-    }
+    let result = lines
+        .lines()
+        .map(parse_line)
+        .map(Result::unwrap)
+        .map(|(_, (pol, inp))| pol.validate(inp))
+        .filter(|&x| x)
+        .count();
+    println!("Count: {}", result);
+    Ok(())
+}
+
+pub fn solve_b() -> io::Result<()> {
+    let lines = std::fs::read_to_string("data/02.txt")?;
+    let result = lines
+        .lines()
+        .map(parse_line)
+        .map(Result::unwrap)
+        .map(|(_, (pol, inp))| pol.validate2(inp))
+        .filter(|&x| x)
+        .count();
+    println!("Count: {}", result);
     Ok(())
 }
