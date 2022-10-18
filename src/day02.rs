@@ -3,7 +3,7 @@ use nom::{
     character::complete::{alpha1, anychar, char, digit1},
     combinator::{map, map_res},
     sequence::separated_pair,
-    AsBytes, IResult,
+    IResult,
 };
 use std::{io, str::FromStr};
 
