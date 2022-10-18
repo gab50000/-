@@ -1,20 +1,20 @@
 use std::io;
 
-pub fn solve_a() {
-    if let Ok(numbers) = read_numbers("./data/01a.txt") {
-        if let Some(result) = find_2020_tuple(numbers) {
-            println!("{}", result.0 * result.1);
-        }
+pub fn solve_a() -> io::Result<()> {
+    let numbers = read_numbers("./data/01a.txt")?;
+    if let Some(result) = find_2020_tuple(numbers) {
+        println!("{}", result.0 * result.1);
     }
+    Ok(())
 }
 
-pub fn solve_b() {
-    if let Ok(numbers) = read_numbers("./data/01a.txt") {
-        if let Some(result) = find_2020_triple(numbers) {
-            println!("{:?}", result);
-            println!("{}", result.0 * result.1 * result.2);
-        }
+pub fn solve_b() -> io::Result<()> {
+    let numbers = read_numbers("./data/01a.txt")?;
+    if let Some(result) = find_2020_triple(numbers) {
+        println!("{:?}", result);
+        println!("{}", result.0 * result.1 * result.2);
     }
+    Ok(())
 }
 fn read_numbers(filename: &str) -> io::Result<Vec<i32>> {
     let lines = std::fs::read_to_string(filename)?;
