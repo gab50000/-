@@ -10,64 +10,78 @@ use nom::{
     IResult,
 };
 
-// fn le_parser(input: &str) -> IResult<&str, &str> {
-//     line_ending(input)
-// }
+fn parse<'a, F>(input: &'a str, tag_: &str, map_func: F) -> IResult<&'a str, &'a str>
+where
+    F: Fn(&str) -> IResult<&str, &str>,
+{
+    let prefix = tuple((tag(tag_), char(':')));
+    let space_or_newline = alt((space0, line_ending));
+    let mut parser = terminated(preceded(prefix, map_func), space_or_newline);
+    parser(input)
+}
+
+macro_rules! parse {
+    () => {};
+}
+
+macro_rules! parse_func_for {
+    (str) => {
+        alphanumeric1
+    };
+    ($other:ident) => {
+        digit1
+    };
+}
+
+macro_rules! conversion_func_for {
+    (str) => {
+        |x| x
+    };
+    ($other:ident) => {
+        |x| <$other>::from_str(x).unwrap()
+    };
+}
 
 macro_rules! make_struct {
-    ($id:ident, &str, $tag:literal) => {
+    ($id:ident, $type:tt, $tag:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq)]
-        struct $id<'a>(&'a str);
+        struct $id<'a>(&'a $type);
         impl<'a> $id<'a> {
             fn parse(input: &'a str) -> IResult<&'a str, Self> {
-                let prefix = tuple((tag($tag), char(':')));
-                let space_or_newline = alt((space0, line_ending));
-                let parser = terminated(preceded(prefix, alphanumeric1), space_or_newline);
-                let mut p = map(parser, Self);
-                p(input)
-            }
-        }
-    };
-    ($id:ident,$type:ty, $tag:literal) => {
-        #[derive(Debug, Clone, Copy, PartialEq)]
-        struct $id($type);
-        impl $id {
-            fn parse(input: &str) -> IResult<&str, Self> {
-                let prefix = tuple((tag($tag), char(':')));
-                let parse_numbers = map_res(digit1, <$type>::from_str);
-                let space_or_newline = alt((space0, line_ending));
-                let parser = terminated(preceded(prefix, parse_numbers), space_or_newline);
-                let mut p = map(parser, Self);
-                p(input)
+                let (input, result) = parse(input, $tag, parse_func_for!($type))?;
+                let f = conversion_func_for!($type);
+                let r = f(result);
+                Ok((input, Self(&r)))
             }
         }
     };
 }
 
+trace_macros!(true);
 make_struct!(BirthYear, u32, "byr");
 make_struct!(IssueYear, u32, "iyr");
 make_struct!(ExpirationYear, u32, "eyr");
 make_struct!(Height, u32, "hgt");
-make_struct!(HairColor, &str, "hcl");
-make_struct!(EyeColor, &str, "ecl");
+make_struct!(HairColor, str, "hcl");
+make_struct!(EyeColor, str, "ecl");
 make_struct!(PassportID, u32, "pid");
 make_struct!(CountryID, u32, "cid");
 
 #[test]
 fn test_birth_year() {
-    assert_eq!(BirthYear::parse("byr:123"), Ok(("", BirthYear(123))));
+    assert_eq!(BirthYear::parse("byr:123"), Ok(("", BirthYear(&123))));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Passport<'a> {
-    pub byr: Option<BirthYear>,
-    pub iyr: Option<IssueYear>,
-    pub eyr: Option<ExpirationYear>,
-    pub hgt: Option<Height>,
+    pub byr: Option<BirthYear<'a>>,
+    pub iyr: Option<IssueYear<'a>>,
+    pub eyr: Option<ExpirationYear<'a>>,
+    pub hgt: Option<Height<'a>>,
     pub hcl: Option<HairColor<'a>>,
     pub ecl: Option<EyeColor<'a>>,
-    pub pid: Option<PassportID>,
-    pub cid: Option<CountryID>,
+    pub pid: Option<PassportID<'a>>,
+    pub cid: Option<CountryID<'a>>,
 }
 
 impl<'a> Passport<'a> {
