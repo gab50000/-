@@ -1,4 +1,4 @@
-use std::{io, str::FromStr};
+use std::{fmt::Error, io, str::FromStr};
 
 use nom::{
     branch::{alt, permutation},
@@ -10,48 +10,107 @@ use nom::{
     IResult,
 };
 
-// fn le_parser(input: &str) -> IResult<&str, &str> {
-//     line_ending(input)
-// }
+macro_rules! prefix {
+    ($tag:literal) => {
+        tuple((tag($tag), char(':')))
+    };
+}
 
-macro_rules! make_struct {
-    ($id:ident, &str, $tag:literal) => {
-        #[derive(Debug, Clone, Copy, PartialEq)]
-        struct $id<'a>(&'a str);
-        impl<'a> $id<'a> {
-            fn parse(input: &'a str) -> IResult<&'a str, Self> {
-                let prefix = tuple((tag($tag), char(':')));
-                let space_or_newline = alt((space0, line_ending));
-                let parser = terminated(preceded(prefix, alphanumeric1), space_or_newline);
-                let mut p = map(parser, Self);
-                p(input)
-            }
+macro_rules! parse_num {
+    ($prefix:tt) => {
+        fn parse(input: &str) -> IResult<&str, Self> {
+            let mut prefix = prefix!($prefix);
+            let (input, _) = prefix(input)?;
+            let (input, val) = map_res(digit1, u32::from_str)(input)?;
+            Ok((input, Self(val)))
         }
     };
-    ($id:ident,$type:ty, $tag:literal) => {
-        #[derive(Debug, Clone, Copy, PartialEq)]
-        struct $id($type);
-        impl $id {
-            fn parse(input: &str) -> IResult<&str, Self> {
-                let prefix = tuple((tag($tag), char(':')));
-                let parse_numbers = map_res(digit1, <$type>::from_str);
-                let space_or_newline = alt((space0, line_ending));
-                let parser = terminated(preceded(prefix, parse_numbers), space_or_newline);
-                let mut p = map(parser, Self);
-                p(input)
-            }
+}
+macro_rules! parse_str {
+    ($prefix:tt) => {
+        fn parse(input: &'a str) -> IResult<&str, Self> {
+            let mut prefix = prefix!($prefix);
+            let (input, _) = prefix(input)?;
+            let (input, val) = alphanumeric1(input)?;
+            Ok((input, Self(val)))
         }
     };
 }
 
-make_struct!(BirthYear, u32, "byr");
-make_struct!(IssueYear, u32, "iyr");
-make_struct!(ExpirationYear, u32, "eyr");
-make_struct!(Height, u32, "hgt");
-make_struct!(HairColor, &str, "hcl");
-make_struct!(EyeColor, &str, "ecl");
-make_struct!(PassportID, u32, "pid");
-make_struct!(CountryID, u32, "cid");
+trace_macros!(true);
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct BirthYear(u32);
+impl BirthYear {
+    parse_num!("byr");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct IssueYear(u32);
+impl IssueYear {
+    parse_num!("iyr");
+}
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ExpirationYear(u32);
+impl ExpirationYear {
+    parse_num!("eyr");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum HeightUnit {
+    Cm(u32),
+    In(u32),
+}
+
+impl HeightUnit {
+    fn parse(input: &str) -> IResult<&str, Self> {
+        let (input, val) = map_res(digit1, u32::from_str)(input)?;
+        let (input, unit) = alt((tag("cm"), tag("in")))(input)?;
+        match unit {
+            "cm" => Ok((input, Self::Cm(val))),
+            _ => Ok((input, Self::In(val))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Height(HeightUnit);
+
+impl Height {
+    fn parse(input: &str) -> IResult<&str, Self> {
+        let mut prefix = prefix!("hgt");
+        let (input, _) = prefix(input)?;
+        let (input, val) = HeightUnit::parse(input)?;
+        Ok((input, Self(val)))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct HairColor<'a>(&'a str);
+
+impl<'a> HairColor<'a> {
+    parse_str!("hcl");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct EyeColor<'a>(&'a str);
+
+impl<'a> EyeColor<'a> {
+    parse_str!("ecl");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PassportID(u32);
+
+impl PassportID {
+    parse_num!("pid");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CountryID(u32);
+
+impl CountryID {
+    parse_num!("cid");
+}
 
 #[test]
 fn test_birth_year() {
@@ -86,14 +145,14 @@ impl<'a> Passport<'a> {
 
     fn parse(input: &'a str) -> Self {
         let mut p = permutation((
-            BirthYear::parse,
-            IssueYear::parse,
-            ExpirationYear::parse,
-            Height::parse,
-            HairColor::parse,
-            EyeColor::parse,
-            PassportID::parse,
-            CountryID::parse,
+            terminated(BirthYear::parse, space0),
+            terminated(IssueYear::parse, space0),
+            terminated(ExpirationYear::parse, space0),
+            terminated(Height::parse, space0),
+            terminated(HairColor::parse, space0),
+            terminated(EyeColor::parse, space0),
+            terminated(PassportID::parse, space0),
+            terminated(CountryID::parse, space0),
         ));
         let result = p(input);
 
@@ -126,6 +185,33 @@ impl<'a> Passport<'a> {
 fn test_passport() {
     let p = Passport::new();
     assert!(!p.is_valid());
+}
+
+#[test]
+fn test_height_parse() {
+    assert_eq!(
+        Height::parse("hgt:172cm"),
+        Ok(("", Height(HeightUnit::Cm(172))))
+    );
+}
+
+#[test]
+fn test_passport_parse() {
+    let p =
+        Passport::parse("hgt:172cm pid:170 hcl:17106b iyr:2012 ecl:gry cid:123 eyr:2020 byr:1990");
+    assert_eq!(
+        p,
+        Passport {
+            hgt: Some(Height(HeightUnit::Cm(172))),
+            pid: Some(PassportID(170)),
+            hcl: Some(HairColor("17106b")),
+            iyr: Some(IssueYear(2012)),
+            ecl: Some(EyeColor("gry")),
+            cid: Some(CountryID(123)),
+            eyr: Some(ExpirationYear(2020)),
+            byr: Some(BirthYear(1990))
+        }
+    );
 }
 
 pub fn solve_a() -> io::Result<()> {
