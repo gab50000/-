@@ -2,13 +2,13 @@ use std::{io, str::FromStr};
 
 use nom::{
     branch::{alt, permutation},
-    bytes::complete::tag,
-    character::complete::char,
-    character::complete::{anychar, digit1, line_ending, space1},
+    bytes::complete::{tag, take_till},
+    character::complete::{anychar, char, digit1, line_ending, space1},
     combinator::{map_res, opt},
+    error::{Error, ErrorKind},
     multi::many1,
     sequence::{terminated, tuple},
-    IResult,
+    Err, IResult, InputTakeAtPosition,
 };
 
 macro_rules! prefix {
@@ -39,7 +39,7 @@ macro_rules! parse_str {
 }
 
 fn space_or_newline(input: &str) -> IResult<&str, &str> {
-    alt((space1, line_ending))(input)
+    space1(input)
 }
 
 #[test]
@@ -57,6 +57,8 @@ impl BirthYear {
 #[test]
 fn test_birth_year() {
     assert_eq!(BirthYear::parse("byr:1234"), Ok(("", BirthYear(1234))));
+    assert_eq!(BirthYear::parse("byr:1234 "), Ok((" ", BirthYear(1234))));
+    assert!(BirthYear::parse(" byr:1234").is_err());
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -118,8 +120,9 @@ impl HairColor {
     fn parse(input: &str) -> IResult<&str, Self> {
         let mut prefix = prefix!("hcl");
         let (input, _) = prefix(input)?;
-        let (input, val) = many1(anychar)(input)?;
-        Ok((input, Self(String::from_iter(val))))
+        let (input, val) = till_whitespace(input)?;
+        let val = String::from_str(val).unwrap();
+        Ok((input, Self(val)))
     }
 }
 
@@ -146,8 +149,8 @@ impl EyeColor {
     fn parse(input: &str) -> IResult<&str, Self> {
         let mut prefix = prefix!("ecl");
         let (input, _) = prefix(input)?;
-        let (input, val) = many1(anychar)(input)?;
-        Ok((input, Self(String::from_iter(val))))
+        let (input, val) = till_whitespace(input)?;
+        Ok((input, Self(String::from_str(val).unwrap())))
     }
 }
 
@@ -238,8 +241,11 @@ fn test_passport() {
 #[test]
 fn test_passport_parse() {
     // let p = Passport::parse("hgt:172cm pid:170 hcl:17106b ");
-    let p = Passport::parse("hcl:gry ");
-    // Passport::parse("hgt:172cm pid:170 hcl:17106b iyr:2012 ecl:gry cid:123 eyr:2020 byr:1990 ");
+    // let p = Passport::parse("hcl:gry ecl:172in ");
+    let p =
+        Passport::parse("hgt:172cm pid:170 hcl:17106b iyr:2012 ecl:gry cid:123 eyr:2020 byr:1990 ");
+    // Passport::parse("iyr:2012 ecl:gry cid:123 eyr:2020 byr:1990 ");
+    // Passport::parse("byr:1990 eyr:2020 hgt:172cm ");
     assert_eq!(
         p,
         Passport {
@@ -286,4 +292,13 @@ pub fn solve_a() -> io::Result<()> {
         println!("{:?}", pp);
     }
     Ok(())
+}
+
+fn till_whitespace(input: &str) -> IResult<&str, &str> {
+    take_till(char::is_whitespace)(input)
+}
+#[test]
+fn test_take_till() {
+    assert_eq!(till_whitespace("bla "), Ok((" ", "bla")));
+    assert_eq!(till_whitespace("bla"), Ok(("", "bla")));
 }
