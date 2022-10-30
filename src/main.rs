@@ -1,9 +1,11 @@
+#![feature(trace_macros)]
 use std::io;
 
 mod day01;
 mod day02;
 mod day03;
 mod day04;
+mod day05;
 
 fn main() -> io::Result<()> {
     day01::solve_a()?;
@@ -12,6 +14,7 @@ fn main() -> io::Result<()> {
     day02::solve_b()?;
     day03::solve_a()?;
     day03::solve_b()?;
-    day04::solve_a()?;
+    // day04::solve_a()?;
+    day05::solve_a();
     Ok(())
 }
